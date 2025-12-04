@@ -23,12 +23,12 @@ struct WorkflowDemoView: View {
                 Button("戻る") {
                     send(.rollback)
                 }
-                .disabled(state.currentPhase.previous == nil)
+                .disabled(!state.currentPhase.canRollback)
 
                 Button("進む") {
                     send(.advance)
                 }
-                .disabled(state.currentPhase.next == nil)
+                .disabled(!state.currentPhase.canAdvance)
 
                 Spacer()
 

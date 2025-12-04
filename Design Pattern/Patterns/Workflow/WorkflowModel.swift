@@ -7,52 +7,80 @@
 
 import Foundation
 
-enum WorkflowPhase: String, CaseIterable, Identifiable {
-    case idea
-    case prototyping
-    case release
+protocol WorkflowPhase {
+    var title: String { get }
+    var detail: String { get }
+    var canAdvance: Bool { get }
+    var canRollback: Bool { get }
+    func advance(context: inout WorkflowState)
+    func rollback(context: inout WorkflowState)
+}
 
-    var id: String { rawValue }
+struct IdeaPhase: WorkflowPhase {
+    var title: String { "構想中" }
+    var detail: String { "チームは要件を整理しながら方向性を決めています。" }
+    var canAdvance: Bool { true }
+    var canRollback: Bool { false }
 
-    var title: String {
-        switch self {
-        case .idea: return "構想中"
-        case .prototyping: return "試作中"
-        case .release: return "リリース済み"
-        }
+    func advance(context: inout WorkflowState) {
+        context.currentPhase = PrototypingPhase()
+        context.log.append("試作中へ遷移しました。")
     }
 
-    var detail: String {
-        switch self {
-        case .idea:
-            return "チームは要件を整理しながら方向性を決めています。"
-        case .prototyping:
-            return "ユーザー検証のためにインタラクティブなプロトタイプを構築中。"
-        case .release:
-            return "本番リリース後、改善リクエストを監視しています。"
-        }
+    func rollback(context: inout WorkflowState) {
+        // 先頭フェーズなので何もしない
+    }
+}
+
+struct PrototypingPhase: WorkflowPhase {
+    var title: String { "試作中" }
+    var detail: String { "ユーザー検証のためにインタラクティブなプロトタイプを構築中。" }
+    var canAdvance: Bool { true }
+    var canRollback: Bool { true }
+
+    func advance(context: inout WorkflowState) {
+        context.currentPhase = ReleasePhase()
+        context.log.append("リリース済みへ遷移しました。")
     }
 
-    var next: WorkflowPhase? {
-        switch self {
-        case .idea: return .prototyping
-        case .prototyping: return .release
-        case .release: return nil
-        }
+    func rollback(context: inout WorkflowState) {
+        context.currentPhase = IdeaPhase()
+        context.log.append("構想中へ戻りました。")
+    }
+}
+
+struct ReleasePhase: WorkflowPhase {
+    var title: String { "リリース済み" }
+    var detail: String { "本番リリース後、改善リクエストを監視しています。" }
+    var canAdvance: Bool { false }
+    var canRollback: Bool { true }
+
+    func advance(context: inout WorkflowState) {
+        // 終端フェーズなので遷移しない
     }
 
-    var previous: WorkflowPhase? {
-        switch self {
-        case .idea: return nil
-        case .prototyping: return .idea
-        case .release: return .prototyping
-        }
+    func rollback(context: inout WorkflowState) {
+        context.currentPhase = PrototypingPhase()
+        context.log.append("試作中へ戻りました。")
     }
 }
 
 struct WorkflowState {
-    var currentPhase: WorkflowPhase = .idea
-    var log: [String] = ["アイデアフェーズからスタート。"]
+    var currentPhase: any WorkflowPhase
+    var log: [String]
+
+    init(
+        currentPhase: (any WorkflowPhase)? = nil,
+        log: [String] = ["アイデアフェーズからスタート。"]
+    ) {
+        self.currentPhase = currentPhase ?? IdeaPhase()
+        self.log = log
+    }
+
+    mutating func reset() {
+        currentPhase = IdeaPhase()
+        log.append("最初のフェーズにリセット。")
+    }
 }
 
 enum WorkflowIntent {
@@ -65,16 +93,13 @@ enum WorkflowReducer {
     static func reduce(state: inout WorkflowState, intent: WorkflowIntent) {
         switch intent {
         case .advance:
-            guard let next = state.currentPhase.next else { return }
-            state.currentPhase = next
-            state.log.append("\(next.title)へ遷移しました。")
+            guard state.currentPhase.canAdvance else { return }
+            state.currentPhase.advance(context: &state)
         case .rollback:
-            guard let previous = state.currentPhase.previous else { return }
-            state.currentPhase = previous
-            state.log.append("\(previous.title)へ戻りました。")
+            guard state.currentPhase.canRollback else { return }
+            state.currentPhase.rollback(context: &state)
         case .reset:
-            state.currentPhase = .idea
-            state.log.append("最初のフェーズにリセット。")
+            state.reset()
         }
     }
 }

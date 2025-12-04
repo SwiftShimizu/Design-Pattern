@@ -17,13 +17,13 @@ struct StrategyDemoView: View {
                 .font(.subheadline)
 
             HStack {
-                ForEach(StrategyType.allCases) { strategy in
+                ForEach(state.availableStrategies, id: \.id) { strategy in
                     Button(strategy.label) {
-                        send(.apply(strategy))
+                        send(.apply(strategy.id))
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(strategy == state.selectedStrategy ? .accentColor : .secondary)
-                    .opacity(strategy == state.selectedStrategy ? 1 : 0.7)
+                    .tint(strategy.id == state.selectedStrategyID ? .accentColor : .secondary)
+                    .opacity(strategy.id == state.selectedStrategyID ? 1 : 0.7)
                 }
             }
 
